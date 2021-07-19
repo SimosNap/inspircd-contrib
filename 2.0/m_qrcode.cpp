@@ -1,7 +1,7 @@
 /*
  * InspIRCd -- Internet Relay Chat Daemon
  *
- *   Copyright (C) 2015 Peter Powell <petpow@saberuk.com>
+ *   Copyright (C) 2015 Sadie Powell <sadie@witchery.services>
  *
  * This file is part of InspIRCd.  InspIRCd is free software: you can
  * redistribute it and/or modify it under the terms of the GNU General Public
@@ -19,8 +19,8 @@
 /* $CompileFlags: pkgconfincludes("libqrencode","/qrencode.h","") */
 /* $LinkerFlags: pkgconflibs("libqrencode","/libqrencode.so","-lqrencode") */
 
-/* $ModAuthor: Peter "SaberUK" Powell */
-/* $ModAuthorMail: petpow@saberuk.com */
+/* $ModAuthor: Sadie Powell */
+/* $ModAuthorMail: sadie@witchery.services */
 /* $ModDesc: Provides support for QR code generation via the /QRCODE command. */
 /* $ModConfig: <qrcode blockchar=" " darkcolour="black" lightcolour="white"> */
 /* $ModDepends: core 2.0 */
@@ -251,13 +251,20 @@ class ModuleQRCode : public Module
 		if (name == "pink")
 			return "13";
 
-		if (name == "gray" | name == "grey")
+		if (name == "gray" || name == "grey")
 			return "14";
 
 		if (name == "lightgray" || name == "lightgrey")
 			return "15";
 
-		throw ModuleException("<qrcode:" + name + "> is not a valid colour!");
+		if (name.find_first_not_of("0123456789") == std::string::npos)
+		{
+			const long value = ConvToInt(name);
+			if (value >= 0 && value <= 99)
+				return ConvToStr(value);
+		}
+
+		throw ModuleException("<" + tag->tag + ":" + key + "> is not a valid colour!");
 	}
 
  public:

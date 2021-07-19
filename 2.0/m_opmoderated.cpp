@@ -19,7 +19,7 @@
 
 #include "inspircd.h"
 
-/* $ModDesc: Implements channel mode +U and extban 'U' - moderator mute */
+/* $ModDesc: Implements channel mode +U and extban 'u' - moderator mute */
 /* $ModDepends: core 2.0 */
 
 class OpModeratedMode : public SimpleChannelModeHandler
@@ -43,7 +43,7 @@ class ModuleOpModerated : public Module
 
 	Version GetVersion()
 	{
-		return Version("Implements opmoderated channel mode +U (non-voiced messages sent to ops) and extban 'u'", VF_OPTCOMMON|VF_VENDOR);
+		return Version("Implements opmoderated channel mode +U (non-voiced messages sent to ops) and extban 'u'", VF_OPTCOMMON);
 	}
 
 	ModResult DoMsg(User *user, void *dest, int target_type, std::string &text, char status, CUList &exempt_list, bool privmsg)

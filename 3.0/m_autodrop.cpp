@@ -1,7 +1,7 @@
 /*
  * InspIRCd -- Internet Relay Chat Daemon
  *
- *   Copyright (C) 2014-2016 Peter Powell <petpow@saberuk.com>
+ *   Copyright (C) 2014-2016 Sadie Powell <sadie@witchery.services>
  *
  * This file is part of InspIRCd.  InspIRCd is free software: you can
  * redistribute it and/or modify it under the terms of the GNU General Public
@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/// $ModAuthor: Peter "SaberUK" Powell
-/// $ModAuthorMail: petpow@saberuk.com
+/// $ModAuthor: Sadie Powell
+/// $ModAuthorMail: sadie@witchery.services
 /// $ModConfig: <autodrop commands="CONNECT DELETE GET HEAD OPTIONS PATCH POST PUT TRACE">
-/// $ModDepends: core 3.0
+/// $ModDepends: core 3
 /// $ModDesc: Allows clients to be automatically dropped if they execute certain commands before registration.
 
 
@@ -51,7 +51,7 @@ class ModuleAutoDrop : public Module
 		}
 	}
 
-	ModResult OnPreCommand(std::string& command, std::vector<std::string>&, LocalUser* user, bool, const std::string&) CXX11_OVERRIDE
+	ModResult OnPreCommand(std::string& command, Command::Params&, LocalUser* user, bool) CXX11_OVERRIDE
 	{
 		if (user->registered == REG_ALL || std::find(Commands.begin(), Commands.end(), command) == Commands.end())
 			return MOD_RES_PASSTHRU;

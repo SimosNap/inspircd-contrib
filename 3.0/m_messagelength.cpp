@@ -1,7 +1,7 @@
 /*
  * InspIRCd -- Internet Relay Chat Daemon
  *
- *   Copyright (C) 2017 Peter Powell <petpow@saberuk.com>
+ *   Copyright (C) 2017 Sadie Powell <sadie@witchery.services>
  *
  * This file is part of InspIRCd.  InspIRCd is free software: you can
  * redistribute it and/or modify it under the terms of the GNU General Public
@@ -17,10 +17,10 @@
  */
 
 
-/// $ModAuthor: Peter "SaberUK" Powell
-/// $ModAuthorMail: petpow@saberuk.com
+/// $ModAuthor: Sadie Powell
+/// $ModAuthorMail: sadie@witchery.services
 /// $ModDesc: Adds a channel mode which limits the length of messages.
-/// $ModDepends: core 3.0
+/// $ModDepends: core 3
 
 #include "inspircd.h"
 
@@ -30,6 +30,9 @@ class MessageLengthMode : public ParamMode<MessageLengthMode, LocalIntExt>
 	MessageLengthMode(Module* Creator)
 		: ParamMode<MessageLengthMode, LocalIntExt>(Creator, "message-length", 'W')
 	{
+#if defined INSPIRCD_VERSION_SINCE && INSPIRCD_VERSION_SINCE(3, 2)
+		syntax = "<max-length>";
+#endif
 	}
 
 	ModeAction OnSet(User*, Channel* channel, std::string& parameter)

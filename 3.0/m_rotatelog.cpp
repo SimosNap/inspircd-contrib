@@ -1,7 +1,7 @@
 /*
  * InspIRCd -- Internet Relay Chat Daemon
  *
- *   Copyright (C) 2015-2016 Peter Powell <petpow@saberuk.com>
+ *   Copyright (C) 2015-2016 Sadie Powell <sadie@witchery.services>
  *
  * This file is part of InspIRCd.  InspIRCd is free software: you can
  * redistribute it and/or modify it under the terms of the GNU General Public
@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/// $ModAuthor: Peter "SaberUK" Powell
-/// $ModAuthorMail: petpow@saberuk.com
+/// $ModAuthor: Sadie Powell
+/// $ModAuthorMail: sadie@witchery.services
 /// $ModConfig: <rotatelog period="3600">
-/// $ModDepends: core 3.0
+/// $ModDepends: core 3
 /// $ModDesc: Rotates the log files after a defined period.
 
 
 #include "inspircd.h"
+
+static volatile sig_atomic_t signaled;
 
 class RotateLogTimer : public Timer
 {
@@ -44,16 +46,23 @@ class RotateLogTimer : public Timer
 class ModuleRotateLog : public Module
 {
  private:
-	 RotateLogTimer* timer;
+	RotateLogTimer* timer;
+
+	static void SignalHandler(int)
+	{
+		signaled = 1;
+	}
 
  public:
 	ModuleRotateLog()
 	{
 		timer = new RotateLogTimer();
+		signal(SIGUSR2, SignalHandler);
 	}
 
 	~ModuleRotateLog()
 	{
+		signal(SIGUSR2, SIG_IGN);
 		ServerInstance->Timers.DelTimer(timer);
 	}
 
@@ -66,6 +75,16 @@ class ModuleRotateLog : public Module
 	{
 		ConfigTag* tag = ServerInstance->Config->ConfValue("rotatelog");
 		timer->SetInterval(tag->getDuration("period", 3600, 60));
+	}
+
+	void OnBackgroundTimer(time_t) CXX11_OVERRIDE
+	{
+		if (!signaled)
+			return;
+
+		timer->Tick(ServerInstance->Time());
+		timer->SetInterval(timer->GetInterval());
+		signaled = 0;
 	}
 
 	Version GetVersion() CXX11_OVERRIDE

@@ -1,7 +1,7 @@
 /*
  * InspIRCd -- Internet Relay Chat Daemon
  *
- *   Copyright (C) 2015-2016 Peter Powell <petpow@saberuk.com>
+ *   Copyright (C) 2015-2016 Sadie Powell <sadie@witchery.services>
  *
  * This file is part of InspIRCd.  InspIRCd is free software: you can
  * redistribute it and/or modify it under the terms of the GNU General Public
@@ -16,19 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/// $ModAuthor: Peter "SaberUK" Powell
-/// $ModAuthorMail: petpow@saberuk.com
-/// $ModDepends: core 3.0
+/// $ModAuthor: Sadie Powell
+/// $ModAuthorMail: sadie@witchery.services
+/// $ModConfig: <solvemsg chanmsg="no" usermsg="yes">
+/// $ModDepends: core 3
 /// $ModDesc: Requires users to solve a basic maths problem before messaging others.
 
 
 #include "inspircd.h"
+#include "modules/account.h"
 
 struct Problem
 {
 	int first;
 	int second;
-	bool warned;
+	time_t nextwarning;
 };
 
 class CommandSolve : public SplitCommand
@@ -45,12 +47,6 @@ class CommandSolve : public SplitCommand
 
 	CmdResult HandleLocal(LocalUser* user, const Params& parameters) CXX11_OVERRIDE
 	{
-		if (user->exempt)
-		{
-			user->WriteNotice("*** You do not need to solve a problem!");
-			return CMD_FAILURE;
-		}
-
 		Problem* problem = ext.get(user);
 		if (!problem)
 		{
@@ -58,7 +54,7 @@ class CommandSolve : public SplitCommand
 			return CMD_FAILURE;
 		}
 
-		int result = ConvToInt(parameters[0]);
+		int result = ConvToNum<int>(parameters[0]);
 		if (result != (problem->first + problem->second))
 		{
 			user->WriteNotice(InspIRCd::Format("*** %s is not the correct answer.", parameters[0].c_str()));
@@ -77,6 +73,10 @@ class ModuleSolveMessage : public Module
  private:
 	SimpleExtItem<Problem> ext;
 	CommandSolve cmd;
+	bool chanmsg;
+	bool usermsg;
+	bool exemptregistered;
+	time_t warntime;
 
  public:
 	ModuleSolveMessage()
@@ -85,36 +85,81 @@ class ModuleSolveMessage : public Module
 	{
 	}
 
-	void OnUserInit(LocalUser* user) CXX11_OVERRIDE
+	void ReadConfig(ConfigStatus& status) CXX11_OVERRIDE
+	{
+		ConfigTag* tag = ServerInstance->Config->ConfValue("solvemsg");
+		chanmsg = tag->getBool("chanmsg", false);
+		usermsg = tag->getBool("usermsg", true);
+		exemptregistered = tag->getBool("exemptregistered", true);
+		warntime = tag->getDuration("warntime", 60, 1);
+	}
+
+	void OnUserPostInit(LocalUser* user) CXX11_OVERRIDE
 	{
 		Problem problem;
 		problem.first = ServerInstance->GenRandomInt(9);
 		problem.second = ServerInstance->GenRandomInt(9);
-		problem.warned = false;
+		problem.nextwarning = 0;
 		ext.set(user, problem);
 	}
 
 	ModResult OnUserPreMessage(User* user, const MessageTarget& msgtarget, MessageDetails& details) CXX11_OVERRIDE
 	{
 		LocalUser* source = IS_LOCAL(user);
-		if (!source || source->exempt || msgtarget.type != MessageTarget::TYPE_USER)
+		if (!source)
 			return MOD_RES_PASSTHRU;
 
-		User* target = msgtarget.Get<User>();
-		if (target->server->IsULine())
-			return MOD_RES_PASSTHRU;
+		if (!source->MyClass->config->getBool("usesolvemsg", true))
+			return MOD_RES_PASSTHRU; // Exempt by connect class.
+
+		if (exemptregistered)
+		{
+			const AccountExtItem* accextitem = GetAccountExtItem();
+			const std::string* account = accextitem ? accextitem->get(user) : NULL;
+			if (account)
+				return MOD_RES_PASSTHRU; // Exempt logged in users.
+		}
+
+		switch (msgtarget.type)
+		{
+			case MessageTarget::TYPE_USER:
+			{
+				if (!usermsg)
+					return MOD_RES_PASSTHRU; // Not enabled.
+
+				User* target = msgtarget.Get<User>();
+				if (target->server->IsULine())
+					return MOD_RES_PASSTHRU; // Allow messaging ulines.
+
+				break;
+			}
+
+			case MessageTarget::TYPE_CHANNEL:
+			{
+				if (!chanmsg)
+					return MOD_RES_PASSTHRU; // Not enabled.
+
+				Channel* target = msgtarget.Get<Channel>();
+				if (target->GetPrefixValue(user) >= VOICE_VALUE)
+					return MOD_RES_PASSTHRU; // Exempt users with a status rank.
+				break;
+			}
+
+			case MessageTarget::TYPE_SERVER:
+				return MOD_RES_PASSTHRU; // Only opers can do this.
+		}
 
 		Problem* problem = ext.get(user);
 		if (!problem)
 			return MOD_RES_PASSTHRU;
 
-		if (problem->warned)
+		if (problem->nextwarning > ServerInstance->Time())
 			return MOD_RES_DENY;
 
 		user->WriteNotice("*** Before you can send messages you must solve the following problem:");
 		user->WriteNotice(InspIRCd::Format("*** What is %d + %d?", problem->first, problem->second));
 		user->WriteNotice("*** You can enter your answer using /QUOTE SOLVE <answer>");
-		problem->warned = true;
+		problem->nextwarning = ServerInstance->Time() + warntime;
 		return MOD_RES_DENY;
 	}
 

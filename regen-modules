@@ -2,7 +2,7 @@
 #
 # InspIRCd -- Internet Relay Chat Daemon
 #
-#   Copyright (C) 2013 Peter Powell <petpow@saberuk.com>
+#   Copyright (C) 2013-2019 Sadie Powell <sadie@witchery.services>
 #
 # This file is part of InspIRCd.  InspIRCd is free software: you can
 # redistribute it and/or modify it under the terms of the GNU General Public
@@ -18,47 +18,51 @@
 #
 
 
-BEGIN {
-	require 5.10.0;
-}
-
-use feature ':5.10';
+use v5.10.0;
 use strict;
 use warnings FATAL => qw(all);
 
-use File::Basename;
+use File::Basename qw(basename dirname);
+
+use constant RM_BASE_URL => $ENV{RM_BASE_URL} // 'https://raw.githubusercontent.com/inspircd/inspircd-contrib';
+use constant RM_EOL      => '1-2';
+use constant RM_EXCLUDE  => qw(1.1 1.2 2.0);
 
 if (system 'git --version > /dev/null 2>&1') {
 	say 'Error: Git is not installed and available in the PATH!';
 	exit 1;
 }
 
-open(LIST, '>modules.lst');
+open(my $list, '>', 'modules.lst');
+say $list "module update-your-server 0.0.0 https://404.example.com";
+say $list " depends core ${\RM_EOL}";
+say $list " description The version of InspIRCd you are using is EOL. Please upgrade!";
 for my $file (<*/m_*.cpp>) {
 	if (system "git ls-files --error-unmatch -- $file > /dev/null 2>&1") {
 		say STDERR "Skipping $file which is not in Git!";
 		next;
 	}
-	my $name = basename($file, '.cpp');
 	my $branch = dirname($file);
+	next if grep { $_ eq $branch } RM_EXCLUDE;
+	my $name = basename($file, '.cpp');
 	chomp(my $revision = `git rev-list HEAD --max-count=1 -- $file`);
 	chomp(my $version = `git rev-list $revision | wc -l`);
 	$version =~ s/\s//g;
-	say LIST "module $name $branch.$version https://raw.github.com/inspircd/inspircd-extras/$revision/$file";
-	open(MODULE, $file);
-	while (<MODULE>) {
-		if ($_ =~ /^\/\* \$(\S+): (.+) \*\/$/ || $_ =~ /^\/\/\/ \$(\S+): (.+)/) {
+	say $list "module $name $branch.$version ${\RM_BASE_URL}/$revision/$file";
+	open(my $module, $file);
+	while (<$module>) {
+		if ($_ =~ /^\/\/\/ \$(\S+): (.+)/) {
 			if ($1 eq 'ModDepends') {
-				say LIST " depends $2";
+				say $list " depends $2";
 			} elsif ($1 eq 'ModConflicts') {
-				say LIST " conflicts $2";
+				say $list " conflicts $2";
 			} elsif ($1 eq 'ModDesc') {
-				say LIST " description $2";
+				say $list " description $2";
 			} elsif ($1 eq 'ModMask') {
-				say LIST " mask $2";
+				say $list " mask $2";
 			}
 		}
 	}
-	close(MODULE);
+	close($module);
 }
-close(LIST);
+close($list);
